@@ -1,0 +1,6 @@
+data/raw/
+*.fna
+*.fasta
+*.msh
+__pycache__/
+.ipynb_checkpoints/
