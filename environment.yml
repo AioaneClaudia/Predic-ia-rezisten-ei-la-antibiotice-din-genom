@@ -1,0 +1,12 @@
+name: rezistenta
+channels:
+  - defaults
+dependencies:
+  - jupyterlab
+  - matplotlib
+  - python=3.11
+  - scikit-learn
+  - numpy
+  - pandas
+  - statsmodels
+prefix: C:\Users\claud\anaconda3\envs\rezistenta
