@@ -1,11 +1,19 @@
-"""Curata datele pentru proof of concept: ciprofloxacin, E. coli, Norvegia, 2002-2017.
+"""Curata datele pentru proof of concept: E. coli, Norvegia, 2002-2017, un antibiotic.
+
+Folosire:  python src/02_pregateste_date.py [antibiotic]
+           (implicit: ciprofloxacin; exemplu: python src/02_pregateste_date.py ampicillin)
 
 Intrare : data/raw/amr_ecoli.tsv, data/raw/genome_meta_ecoli.tsv
-Iesire  : data/processed/cipro_norvegia.tsv (un rand per genom, y = 1 pentru rezistent)
+Iesire  : data/processed/<nume>_norvegia.tsv (un rand per genom, y = 1 pentru rezistent)
+          (pentru ciprofloxacin fisierul se numeste cipro_norvegia.tsv)
 """
+import sys
 from pathlib import Path
 
 import pandas as pd
+
+ANTIBIOTIC = sys.argv[1] if len(sys.argv) > 1 else "ciprofloxacin"
+NUME = "cipro" if ANTIBIOTIC == "ciprofloxacin" else ANTIBIOTIC
 
 RAW = Path("data/raw")
 OUT = Path("data/processed")
@@ -14,8 +22,8 @@ OUT.mkdir(parents=True, exist_ok=True)
 amr = pd.read_csv(RAW / "amr_ecoli.tsv", sep="\t", dtype=str)
 meta = pd.read_csv(RAW / "genome_meta_ecoli.tsv", sep="\t", dtype=str)
 
-# 1. Doar masuratori de laborator (fara predictiile XGBoost ale BV-BRC), pentru ciprofloxacin
-lab = amr[amr["computational_method"].isna() & (amr["antibiotic"] == "ciprofloxacin")]
+# 1. Doar masuratori de laborator (fara predictiile XGBoost ale BV-BRC), pentru antibioticul ales
+lab = amr[amr["computational_method"].isna() & (amr["antibiotic"] == ANTIBIOTIC)]
 lab = lab.dropna(subset=["resistant_phenotype"])
 
 
@@ -40,6 +48,6 @@ df = df[(df["isolation_country"] == "Norway")
         & (df["genome_quality"] == "Good")].copy()
 df["y"] = (df["resistant_phenotype"] == "Resistant").astype(int)
 
-df.to_csv(OUT / "cipro_norvegia.tsv", sep="\t", index=False)
-print(f"{len(df)} genome, prevalenta rezistenta = {df['y'].mean():.3f}")
+df.to_csv(OUT / f"{NUME}_norvegia.tsv", sep="\t", index=False)
+print(f"{ANTIBIOTIC}: {len(df)} genome, prevalenta rezistenta = {df['y'].mean():.3f}")
 print(df.groupby(df["collection_year"] <= 2012)["y"].agg(["sum", "count"]))
