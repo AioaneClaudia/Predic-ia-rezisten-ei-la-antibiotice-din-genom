@@ -4,3 +4,5 @@ data/raw/
 *.msh
 __pycache__/
 .ipynb_checkpoints/
+data/sketches/
+data/processed/kmeri_X.npz
