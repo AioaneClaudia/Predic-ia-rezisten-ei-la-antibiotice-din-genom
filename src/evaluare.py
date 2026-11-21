@@ -133,11 +133,14 @@ def evalueaza(train, test):
 
 # ---------------------------------------------- controlul cu distanta potrivita
 def control_distanta(df, an_taiere=2012, frac_train=0.65, nume_model="HC50",
-                     seed=0, bootstrap=True, n_min=50, returneaza_seturi=False, model_fn=None):
+                     seed=0, bootstrap=True, n_min=50, returneaza_seturi=False,
+                     model_fn=None, potriveste_prevalenta=False):
     """Un experiment: ACEEASI izolate de antrenare (din perioada veche), doua teste:
       - testul temporal (perioada noua);
       - un control din perioada veche, esantionat astfel incat distributia distantei
         pana la antrenare sa fie aceeasi ca la testul temporal.
+    Cu potriveste_prevalenta=True se potrivesc si rezistentele in fiecare categorie de
+    distanta, deci controlul are si aceeasi prevalenta ca testul.
     Daca performanta e aceeasi, scaderea in timp se explica prin distanta."""
     rng = np.random.default_rng(seed)
     vechi = df[df["collection_year"] <= an_taiere]
@@ -145,19 +148,25 @@ def control_distanta(df, an_taiere=2012, frac_train=0.65, nume_model="HC50",
     tr, pool = train_test_split(vechi, train_size=frac_train,
                                 stratify=vechi["y"], random_state=seed)
 
-    b_nou = bin_distanta(distanta_minima(tr, nou))
-    b_pool = bin_distanta(distanta_minima(tr, pool))
-    p_nou = b_nou.value_counts(normalize=True)
-    disponibil = b_pool.value_counts()
-    categorii = [c for c in ETICHETE_DISTANTA if p_nou[c] > 0]
+    b_nou = bin_distanta(distanta_minima(tr, nou)).astype(str)
+    b_pool = bin_distanta(distanta_minima(tr, pool)).astype(str)
+    if potriveste_prevalenta:
+        k_nou = pd.Series(b_nou.values + "|" + nou["y"].astype(str).values)
+        k_pool = pd.Series(b_pool.values + "|" + pool["y"].astype(str).values)
+    else:
+        k_nou, k_pool = pd.Series(b_nou.values), pd.Series(b_pool.values)
+    p_nou = k_nou.value_counts(normalize=True)
+    categorii = list(p_nou.index)
+    disponibil = k_pool.value_counts().reindex(categorii, fill_value=0)
 
     # cel mai mare control la care se pot potrivi toate categoriile
     n_ctrl = int(min(disponibil[c] / p_nou[c] for c in categorii))
     if n_ctrl < n_min:
         return None
+    k_pool.index = pool.index
     alesi = []
     for c in categorii:
-        candidati = pool.index[(b_pool == c).values]
+        candidati = pool.index[(k_pool == c).values]
         k = min(int(round(p_nou[c] * n_ctrl)), len(candidati))
         alesi.extend(rng.choice(candidati, size=k, replace=False))
     ctrl = pool.loc[alesi]
