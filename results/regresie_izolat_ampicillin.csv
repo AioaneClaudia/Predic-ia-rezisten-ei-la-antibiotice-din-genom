@@ -1,0 +1,5 @@
+rezultat,model,coef_decalaj,IC_jos,IC_sus,p
+eroare,doar decalaj,0.0033,-0.0034,0.0099,0.3345
+eroare,decalaj + distanta,0.0034,-0.003,0.0099,0.2947
+rezidual,doar decalaj,0.0095,-0.0049,0.024,0.1965
+rezidual,decalaj + distanta,0.0099,-0.0049,0.0248,0.1892

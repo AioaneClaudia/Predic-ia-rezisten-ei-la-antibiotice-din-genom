@@ -1,0 +1,4 @@
+,medie,IC95_jos,IC95_sus
+AUROC_temporal,0.908,0.856,0.935
+AUROC_control,0.965,0.906,0.997
+delta_AUROC,-0.057,-0.11,-0.009

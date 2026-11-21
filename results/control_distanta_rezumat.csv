@@ -1,0 +1,7 @@
+,medie,IC95_jos,IC95_sus
+AUROC_temporal,0.701,0.671,0.734
+AUROC_control,0.67,0.602,0.738
+delta_AUROC,0.031,-0.042,0.108
+castig_temporal,0.195,0.163,0.23
+castig_control,0.179,0.097,0.262
+delta_castig,0.015,-0.073,0.107
