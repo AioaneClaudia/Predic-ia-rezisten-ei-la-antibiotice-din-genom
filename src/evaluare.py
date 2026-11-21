@@ -3,13 +3,14 @@
 Continut:
   - incarcarea datelor curate
   - impartiri: aleatorie, temporala, pe clustere
-  - model doar-linie (baseline) si distanta pana la cel mai apropiat izolat din antrenare
+  - model doar-linie (baseline), model pe k-meri si distanta pana la cel mai apropiat izolat
   - metrici (AUROC si castigul AUPRC fata de prevalenta)
   - controlul cu distanta potrivita
   - tabelul pentru regresia la nivel de izolat
 """
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.model_selection import train_test_split
 
@@ -82,6 +83,32 @@ def bin_distanta(d):
     return pd.cut(d, bins=[-1, 10, 20, 50, 100, np.inf], labels=ETICHETE_DISTANTA)
 
 
+# ---------------------------------------------------- fabrici de modele
+# Un "model" este o functie  model_fn(train, test1, test2, ...)  care antreneaza o singura data
+# pe `train` si intoarce cate un vector de probabilitati pentru fiecare test dat.
+def fabrica_linie(nume_model):
+    """Modelul doar-linie ("ST", "HC20", "HC50", "HC100" etc.)."""
+    col = MODELE[nume_model]
+
+    def model_fn(train, *teste):
+        return tuple(model_linie(train, te, col) for te in teste)
+    return model_fn
+
+
+def fabrica_kmeri(X, id2row, C=0.1, min_df=5):
+    """Regresie logistica pe prezenta/absenta k-merilor (matrice rara X, un rand per genom).
+    Trasaturile prezente la mai putin de `min_df` genome DIN ANTRENARE se elimina."""
+    def model_fn(train, *teste):
+        Xtr = X[train["genome_id"].map(id2row).values]
+        pastreaza = np.asarray(Xtr.sum(axis=0)).ravel() >= min_df
+        Xtr = Xtr[:, pastreaza]
+        clf = LogisticRegression(C=C, solver="liblinear", max_iter=200)
+        clf.fit(Xtr, train["y"].values)
+        return tuple(clf.predict_proba(X[te["genome_id"].map(id2row).values][:, pastreaza])[:, 1]
+                     for te in teste)
+    return model_fn
+
+
 # --------------------------------------------------------------- metrici
 def metrici(y, scor, rng=None):
     """AUROC si castigul AUPRC (AUPRC minus prevalenta). Daca rng e dat, se face un
@@ -106,7 +133,7 @@ def evalueaza(train, test):
 
 # ---------------------------------------------- controlul cu distanta potrivita
 def control_distanta(df, an_taiere=2012, frac_train=0.65, nume_model="HC50",
-                     seed=0, bootstrap=True, n_min=50, returneaza_seturi=False):
+                     seed=0, bootstrap=True, n_min=50, returneaza_seturi=False, model_fn=None):
     """Un experiment: ACEEASI izolate de antrenare (din perioada veche), doua teste:
       - testul temporal (perioada noua);
       - un control din perioada veche, esantionat astfel incat distributia distantei
@@ -135,10 +162,12 @@ def control_distanta(df, an_taiere=2012, frac_train=0.65, nume_model="HC50",
         alesi.extend(rng.choice(candidati, size=k, replace=False))
     ctrl = pool.loc[alesi]
 
-    col = MODELE[nume_model]
+    if model_fn is None:
+        model_fn = fabrica_linie(nume_model)
+    s_nou, s_ctrl = model_fn(tr, nou, ctrl)          # un singur antrenament, doua teste
     r_rng = rng if bootstrap else None
-    m_nou = metrici(nou["y"].values, model_linie(tr, nou, col), r_rng)
-    m_ctrl = metrici(ctrl["y"].values, model_linie(tr, ctrl, col), r_rng)
+    m_nou = metrici(nou["y"].values, s_nou, r_rng)
+    m_ctrl = metrici(ctrl["y"].values, s_ctrl, r_rng)
     rezultat = {
         "n_antrenare": len(tr), "n_test_temporal": len(nou), "n_control": len(ctrl),
         "prev_temporal": nou["y"].mean(), "prev_control": ctrl["y"].mean(),
@@ -153,11 +182,13 @@ def control_distanta(df, an_taiere=2012, frac_train=0.65, nume_model="HC50",
 
 
 # ---------------------------------------------------- regresia la nivel de izolat
-def tabel_regresie(df, an_taiere=2012, nume_model="HC50"):
+def tabel_regresie(df, an_taiere=2012, nume_model="HC50", model_fn=None):
     """Un rand per izolat de test (impartirea temporala), cu eroarea modelului,
     distanta pana la antrenare si decalajul temporal."""
     tr, te = split_temporal(df, an_taiere)
-    p = model_linie(tr, te, MODELE[nume_model])
+    if model_fn is None:
+        model_fn = fabrica_linie(nume_model)
+    p = model_fn(tr, te)[0]
     out = te.copy()
     out["p"] = p
     out["rezidual"] = out["y"] - out["p"]          # cu semn: >0 = modelul subestimeaza rezistenta
